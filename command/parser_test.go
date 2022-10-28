@@ -1,4 +1,4 @@
-package sysping
+package command
 
 import (
 	"testing"

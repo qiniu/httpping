@@ -1,4 +1,4 @@
-package network
+package http
 
 import (
 	"context"
@@ -10,7 +10,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/longbai/ping/sysping"
+	"github.com/longbai/ping/command"
+	"github.com/longbai/ping/network"
 )
 
 type TcpWrapper struct {
@@ -127,7 +128,7 @@ func hops(ttl uint) uint16 {
 	}
 }
 
-func copyTcpInfo(h *HttpInfo, t *TCPInfo) {
+func copyTcpInfo(h *HttpInfo, t *network.TCPInfo) {
 	h.RttMs = t.RttMs
 	h.ReTransmitPackets = t.ReTransmitPackets
 }
@@ -165,7 +166,7 @@ func HttpPing(req *http.Request, ping bool, srcAddr string) (*HttpInfo, error) {
 	httpInfo.DnsTimeMs = time.Since(dnsStart).Milliseconds()
 	if ping {
 		go func() {
-			p, err := sysping.Ping(addr.String(), 1, 5, 1, srcAddr)
+			p, err := command.Ping(addr.String(), 1, 5, 1, srcAddr)
 			if err == nil && len(p.Replies) != 0 {
 				httpInfo.Hops = hops(p.Replies[0].TTL)
 			}
@@ -214,7 +215,7 @@ func HttpPing(req *http.Request, ping bool, srcAddr string) (*HttpInfo, error) {
 		return nil, err
 	}
 	endTime := time.Now()
-	tcpInfo, err := GetSockoptTCPInfo(tcpConn)
+	tcpInfo, err := network.GetSockoptTCPInfo(tcpConn)
 	if err != nil {
 		return nil, err
 	}

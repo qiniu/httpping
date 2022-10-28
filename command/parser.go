@@ -1,5 +1,5 @@
 // from https://github.com/sggms/go-pingparse
-package sysping
+package command
 
 import (
 	"errors"

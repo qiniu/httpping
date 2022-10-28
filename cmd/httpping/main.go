@@ -3,8 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/longbai/ping/network"
 	"net/http"
+
+	h "github.com/longbai/ping/http"
 )
 
 func main() {
@@ -24,7 +25,7 @@ func main() {
 		req.Header.Set("Range", "bytes="+*range_)
 	}
 
-	info, err := network.HttpPing(req, *ping, *local)
+	info, err := h.HttpPing(req, *ping, *local)
 	if err != nil {
 		fmt.Println(err)
 		flag.PrintDefaults()
