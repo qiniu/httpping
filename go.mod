@@ -1,4 +1,4 @@
-module github.com/longbai/ping
+module github.com/qiniu/httpping
 
 go 1.19
 

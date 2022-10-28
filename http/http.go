@@ -10,8 +10,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/longbai/ping/command"
-	"github.com/longbai/ping/network"
+	"github.com/qiniu/httpping/command"
+	"github.com/qiniu/httpping/network"
 )
 
 type TcpWrapper struct {
@@ -176,7 +176,7 @@ func HttpPing(req *http.Request, ping bool, srcAddr string) (*HttpInfo, error) {
 
 	var localAddr *net.TCPAddr
 	if srcAddr != "" {
-		localAddr, err = net.ResolveTCPAddr("tcp", srcAddr)
+		localAddr, err = net.ResolveTCPAddr("tcp", srcAddr+":0")
 		if err != nil {
 			return nil, err
 		}

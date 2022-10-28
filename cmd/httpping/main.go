@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	h "github.com/longbai/ping/http"
+	h "github.com/qiniu/httpping/http"
 )
 
 func main() {
