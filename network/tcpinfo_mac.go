@@ -28,8 +28,8 @@ type TCPInfo struct {
 	Tcpisnd_sbbytes         uint32 /* bytes in send socket buffer, including in-flight data */
 	Tcpircv_wnd             uint32 /* receive window in bytes*/
 	Tcpirttcur              uint32 /* most recent RTT */
-	Tcpisrtt                uint32 /* average RTT */
-	Tcpirttvar              uint32 /* RTT variance */
+	Rtt                     uint32
+	Rttvar                  uint32
 	Tcpi_tfo                uint32
 	Tcpitxpackets           uint64
 	Tcpitxbytes             uint64
@@ -64,9 +64,9 @@ func GetsockoptTCPInfo(tcpConn *net.TCPConn) (*TCPInfo, error) {
 	if errno != 0 {
 		return nil, fmt.Errorf("syscall failed. errno=%d", errno)
 	}
-	tcpInfo.Tcpisrtt *= 1000 // unify to linux
+	tcpInfo.Rtt *= 1000 // unify to linux
 	tcpInfo.Tcpirttcur *= 1000
-	tcpInfo.Tcpirttvar *= 1000
+	tcpInfo.Rttvar *= 1000
 
 	return &tcpInfo, nil
 }

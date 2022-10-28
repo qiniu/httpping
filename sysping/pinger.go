@@ -5,23 +5,28 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
-	"time"
 )
 
 // Ping will ping the specified IPv4 address wit the provided timeout, interval and size settings .
-func Ping(ipV4Address string, interval, timeout time.Duration, size uint) (*PingOutput, error) {
+func Ping(ipV4Address string, interval, timeout int, count int) (*PingOutput, error) {
 	var (
 		output, errorOutput bytes.Buffer
 		exitCode            int
 	)
-
-	pingArgs := []string{"-n", "-s", fmt.Sprintf("%d", size), "-w", fmt.Sprintf("%d", int(timeout.Seconds())), "-i", fmt.Sprintf("%d", int(interval.Seconds())), ipV4Address}
+	var pingArgs []string
+	if runtime.GOOS == "darwin" {
+		pingArgs = []string{"-n", "-i", strconv.Itoa(interval), "-c", strconv.Itoa(count), ipV4Address}
+	} else {
+		pingArgs = []string{"-n", "-i", strconv.Itoa(interval), "-c", strconv.Itoa(count), ipV4Address}
+	}
 	cmd := exec.Command("ping", pingArgs...)
 	cmd.Stdout = &output
 	cmd.Stderr = &errorOutput
-
+	fmt.Println(cmd.String())
 	err := cmd.Run()
 	if err == nil {
 		ws := cmd.ProcessState.Sys().(syscall.WaitStatus)
@@ -32,7 +37,7 @@ func Ping(ipV4Address string, interval, timeout time.Duration, size uint) (*Ping
 			return nil, err
 		}
 	}
-
+	fmt.Println(output.String())
 	// try to parse output also in case of failure
 	po, err := Parse(output.String())
 	if err == nil {
