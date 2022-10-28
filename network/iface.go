@@ -3,6 +3,7 @@ package network
 import (
 	"log"
 	"net"
+	"strings"
 )
 
 func ChooseInterface() string {
@@ -12,7 +13,7 @@ func ChooseInterface() string {
 	}
 	for _, iface := range interfaces {
 		// Skip loopback
-		if iface.Name == "lo" {
+		if strings.HasPrefix(iface.Name, "lo") {
 			continue
 		}
 		addrs, err := iface.Addrs()
@@ -40,5 +41,12 @@ func InterfaceAddress(ifaceName string) net.Addr {
 	if err != nil {
 		log.Fatalf("iface.Addrs: %s", err)
 	}
-	return addrs[0]
+	var addr net.Addr
+	for _, a := range addrs {
+		if !strings.Contains(a.String(), ":") {
+			addr = a
+			break
+		}
+	}
+	return addr
 }

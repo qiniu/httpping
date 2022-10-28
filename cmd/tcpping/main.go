@@ -16,9 +16,9 @@ var (
 	autoParam    = flag.Bool("a", false, "Measure latency to several well known addresses")
 	defaultHosts = map[string]string{
 		// Busiest sites on the Internet, according to Wolfram Alpha
+		"Baidu":    "baidu.com",
 		"Google":   "google.com",
 		"Facebook": "facebook.com",
-		"Baidu":    "baidu.com",
 
 		// Various locations, thanks Linode
 		"West Coast, USA": "speedtest.fremont.linode.com",
@@ -47,6 +47,7 @@ func main() {
 	}
 
 	iface := *ifaceParam
+	fmt.Println("iface", iface)
 	if iface == "" {
 		iface = network.ChooseInterface()
 		if iface == "" {
@@ -78,7 +79,7 @@ func main() {
 
 func printHelp() {
 	help := `
-	USAGE: latency [-h] [-a] [-i iface] [-p port] <remote>
+	USAGE: tcpping [-h] [-a] [-i iface] [-p port] <remote>
 	Where 'remote' is an ip address or host name.
 	Default port is 80
 	-h: Help

@@ -14,6 +14,7 @@ For full license details see <http://www.gnu.org/licenses/>.
 package network
 
 import (
+	"fmt"
 	"log"
 	"math/rand"
 	"net"
@@ -32,6 +33,7 @@ func Latency(localAddr string, remoteHost string, port uint16) time.Duration {
 	if err != nil {
 		log.Fatalf("Error resolving %s. %s\n", remoteHost, err)
 	}
+	fmt.Println(addrs)
 	remoteAddr := addrs[0]
 
 	go func() {
@@ -103,11 +105,10 @@ func to4byte(addr string) [4]byte {
 }
 
 func receiveSynAck(localAddress, remoteAddress string) time.Time {
-	netaddr, err := net.ResolveIPAddr("ip4", localAddress)
+	netaddr, err := net.ResolveIPAddr("ip", localAddress)
 	if err != nil {
 		log.Fatalf("net.ResolveIPAddr: %s. %s\n", localAddress, netaddr)
 	}
-
 	conn, err := net.ListenIP("ip4:tcp", netaddr)
 	if err != nil {
 		log.Fatalf("ListenIP: %s\n", err)

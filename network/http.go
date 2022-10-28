@@ -1,6 +1,6 @@
-//go:build amd64 && linux
-
 package network
+
+import "net"
 
 type TcpWrapper struct {
 	d *net.TCPConn
@@ -11,5 +11,5 @@ func (t TcpWrapper) Dial(network, addr string) (net.Conn, error) {
 }
 
 func HttpPing(url string) (*TCPInfo, error) {
-	
+	return nil, nil
 }
