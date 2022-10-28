@@ -1,3 +1,5 @@
+//go:build amd64 && darwin
+
 package network
 
 import (
