@@ -12,6 +12,7 @@ import (
 const TCP_CONNECTION_INFO = 0x106
 const IPPROTO_TCP = 6
 
+// copy from netinet/tcp.h
 type TCPInfo struct {
 	Tcpistate               uint8 /* connection state */
 	Tcpisnd_wscale          uint8 /* Window scale for send window */
@@ -26,8 +27,8 @@ type TCPInfo struct {
 	Tcpisnd_wnd             uint32 /* send widnow in bytes */
 	Tcpisnd_sbbytes         uint32 /* bytes in send socket buffer, including in-flight data */
 	Tcpircv_wnd             uint32 /* receive window in bytes*/
-	Tcpirttcur              uint32 /* most recent RTT in ms */
-	Tcpisrtt                uint32 /* average RTT in ms */
+	Tcpirttcur              uint32 /* most recent RTT */
+	Tcpisrtt                uint32 /* average RTT */
 	Tcpirttvar              uint32 /* RTT variance */
 	Tcpi_tfo                uint32
 	Tcpitxpackets           uint64
@@ -63,6 +64,9 @@ func GetsockoptTCPInfo(tcpConn *net.TCPConn) (*TCPInfo, error) {
 	if errno != 0 {
 		return nil, fmt.Errorf("syscall failed. errno=%d", errno)
 	}
+	tcpInfo.Tcpisrtt *= 1000 // unify to linux
+	tcpInfo.Tcpirttcur *= 1000
+	tcpInfo.Tcpirttvar *= 1000
 
 	return &tcpInfo, nil
 }
