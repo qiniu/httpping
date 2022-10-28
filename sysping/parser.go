@@ -1,3 +1,4 @@
+// from https://github.com/sggms/go-pingparse
 package sysping
 
 import (
@@ -31,8 +32,8 @@ func (ce ConversionError) Error() string {
 }
 
 var (
-	headerRx         = regexp.MustCompile(`^PING (?P<host>.*) \((?P<resolvedIPAddress>\d+\.\d+\.\d+\.\d+)\) (?P<payloadSize>\d+)\((?P<payloadActualSize>\d+)\) bytes of data`)
-	headerRxAlt      = regexp.MustCompile(`^PING (?P<host>.*) \((?P<resolvedIPAddress>\d+\.\d+\.\d+\.\d+)\): (?P<payloadSize>\d+) data bytes`)
+	headerRx         = regexp.MustCompile(`^PING (?P<host>.*) \((?P<resolvedIPAddress>\d+\.\d+\.\d+\.\d+)\)( from .* :)? (?P<payloadSize>\d+)\((?P<payloadActualSize>\d+)\) bytes of data`)
+	headerRxAlt      = regexp.MustCompile(`^PING (?P<host>.*) \((?P<resolvedIPAddress>\d+\.\d+\.\d+\.\d+)\)( from .*)?: (?P<payloadSize>\d+) data bytes`)
 	lineRx           = regexp.MustCompile(`^(?P<replySize>\d+) bytes from (?P<fromAddress>\d+\.\d+\.\d+\.\d+): icmp_seq=(?P<seqNo>\d+) ttl=(?P<ttl>\d+) time=(?P<time>.*)$`)
 	statsSeparatorRx = regexp.MustCompile(`^--- (?P<IPAddress>.*) ping statistics ---$`)
 	statsLine1       = regexp.MustCompile(`^(?P<packetsTransmitted>\d+) packets transmitted, (?P<packetsReceived>\d+) (packets )?received,( \+(?P<errors>\d+) errors,)?( \+(?P<duplicates>\d+) duplicates,)?( (?P<packetLoss>.*)% packet loss)?(, time (?P<time>.*))?( \-\- (?P<warning>.*))?$`)

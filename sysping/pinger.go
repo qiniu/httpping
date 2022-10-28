@@ -1,4 +1,4 @@
-// copy from https://github.com/sggms/go-pingparse, only for linux ping
+// from https://github.com/sggms/go-pingparse
 package sysping
 
 import (
@@ -12,21 +12,25 @@ import (
 )
 
 // Ping will ping the specified IPv4 address wit the provided timeout, interval and size settings .
-func Ping(ipV4Address string, interval, timeout int, count int) (*PingOutput, error) {
+func Ping(ipV4Address string, interval, timeout int, count int, sourceAddr string) (*PingOutput, error) {
 	var (
 		output, errorOutput bytes.Buffer
 		exitCode            int
 	)
-	var pingArgs []string
+	var pingArgs = []string{"-n", "-i", strconv.Itoa(interval), "-c", strconv.Itoa(count)}
 	if runtime.GOOS == "darwin" {
-		pingArgs = []string{"-n", "-i", strconv.Itoa(interval), "-c", strconv.Itoa(count), ipV4Address}
+		if sourceAddr != "" {
+			pingArgs = append(pingArgs, "-S", sourceAddr)
+		}
 	} else {
-		pingArgs = []string{"-n", "-i", strconv.Itoa(interval), "-c", strconv.Itoa(count), ipV4Address}
+		if sourceAddr != "" {
+			pingArgs = append(pingArgs, "-I", sourceAddr)
+		}
 	}
+	pingArgs = append(pingArgs, ipV4Address)
 	cmd := exec.Command("ping", pingArgs...)
 	cmd.Stdout = &output
 	cmd.Stderr = &errorOutput
-	fmt.Println(cmd.String())
 	err := cmd.Run()
 	if err == nil {
 		ws := cmd.ProcessState.Sys().(syscall.WaitStatus)
@@ -37,7 +41,6 @@ func Ping(ipV4Address string, interval, timeout int, count int) (*PingOutput, er
 			return nil, err
 		}
 	}
-	fmt.Println(output.String())
 	// try to parse output also in case of failure
 	po, err := Parse(output.String())
 	if err == nil {

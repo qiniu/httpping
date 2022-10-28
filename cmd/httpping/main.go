@@ -1,32 +1,35 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"github.com/longbai/ping/network"
-	"net"
 	"net/http"
 )
 
-type TcpWrapper struct {
-	d *net.TCPConn
-}
-
-func (t TcpWrapper) Dial(network, addr string) (net.Conn, error) {
-	return t.d, nil
-}
-
 func main() {
-	tcpAddr, err := net.ResolveTCPAddr("tcp4", "www.baidu.com:80")
-	fmt.Println(err)
+	url := flag.String("u", "www.baidu.com", "ping url")
+	ping := flag.Bool("p", true, "with system ping command")
+	local := flag.String("l", "", "local address")
+	range_ := flag.String("r", "", "http range")
+	flag.Parse()
 
-	//DialTCP建立一个TCP连接
-	//net参数是"tcp4"、"tcp6"、"tcp"
-	//laddr表示本机地址，一般设为nil
-	//raddr表示远程地址
-	tcpConn, err2 := net.DialTCP("tcp", nil, tcpAddr)
-	fmt.Println(err2)
-	x := http.Client{Transport: &http.Transport{Dial: TcpWrapper{tcpConn}.Dial}}
-	x.Get("www.baidu.com")
-	info, err := network.GetsockoptTCPInfo(tcpConn)
-	fmt.Printf("%+v %v", info, err)
+	req, err := http.NewRequest(http.MethodGet, *url, nil)
+	if err != nil {
+		fmt.Println(err)
+		flag.PrintDefaults()
+		return
+	}
+	if *range_ != "" {
+		req.Header.Set("Range", "bytes="+*range_)
+	}
+
+	info, err := network.HttpPing(req, *ping, *local)
+	if err != nil {
+		fmt.Println(err)
+		flag.PrintDefaults()
+		return
+	}
+
+	fmt.Println(info.String())
 }
