@@ -1,6 +1,7 @@
 # httpping
 http ping for test service
 ping with tcp statics
+```
 ./h -u http://www.baidu.com
 {
 	"Domain": "www.baidu.com",
@@ -18,3 +19,4 @@ ping with tcp statics
 	"TotalSize": 91800,
 	"TotalTimeMs": 102
 }
+```
