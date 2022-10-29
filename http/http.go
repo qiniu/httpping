@@ -100,6 +100,8 @@ type HttpInfo struct {
 	Speed              float32 // unit kb/s
 	TotalSize          int64
 	TotalTimeMs        int64
+	Error              string
+	PingError          string
 }
 
 func (h *HttpInfo) String() string {
@@ -176,6 +178,8 @@ func HttpPing(req *http.Request, ping bool, srcAddr string) (*HttpInfo, error) {
 			p, err := command.Ping(addr.String(), 1, 5, 1, srcAddr)
 			if err == nil && len(p.Replies) != 0 {
 				httpInfo.Hops = hops(p.Replies[0].TTL)
+			} else {
+				httpInfo.PingError = err.Error()
 			}
 			pWait <- 1
 		}()
@@ -206,7 +210,8 @@ func HttpPing(req *http.Request, ping bool, srcAddr string) (*HttpInfo, error) {
 	connectStart := time.Now()
 	tcpConn, err := net.DialTCP("tcp", localAddr, remoteAddr)
 	if err != nil {
-		return nil, err
+		httpInfo.Error = err.Error()
+		return &httpInfo, nil
 	}
 	httpInfo.ConnectTimeMs = uint32(time.Since(connectStart).Milliseconds())
 	w := TcpWrapper{d: tcpConn}
@@ -217,24 +222,28 @@ func HttpPing(req *http.Request, ping bool, srcAddr string) (*HttpInfo, error) {
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		httpInfo.Error = err.Error()
+		return &httpInfo, nil
 	}
 	httpInfo.Code = resp.StatusCode
 	err = readAll(resp.Body)
 	if err != nil {
-		return nil, err
+		httpInfo.Error = err.Error()
+		return &httpInfo, nil
 	}
 	endTime := time.Now()
 	tcpInfo, err := network.GetSockoptTCPInfo(tcpConn)
 	if err != nil {
-		return nil, err
+		httpInfo.Error = err.Error()
+	} else {
+		copyTcpInfo(&httpInfo, tcpInfo)
 	}
-	copyTcpInfo(&httpInfo, tcpInfo)
+
 	httpInfo.TotalSize = w.count
 	httpInfo.TTFBMs = uint32(w.TTFB().Milliseconds())
 	httpInfo.TotalTimeMs = endTime.Sub(connectStart).Milliseconds()
 	//use last write to calculate download speed to avoid small request that firstRead == endTime
-	httpInfo.Speed = float32(float64(w.count) / float64(endTime.Sub(w.lastWrite).Milliseconds()))
+	httpInfo.Speed = float32(float64(w.count) / float64(endTime.Sub(w.lastWrite).Milliseconds()-int64(httpInfo.RttMs)))
 	if ping {
 		<-pWait
 	}
