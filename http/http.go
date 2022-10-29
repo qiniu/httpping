@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/qiniu/httpping/command"
@@ -86,8 +87,9 @@ func (t *TcpWrapper) TTFB() time.Duration {
 type HttpInfo struct {
 	Domain             string
 	Ip                 string
-	Code               uint16
-	Hops               uint16
+	Port               int
+	Code               int
+	Hops               uint32
 	RttMs              uint32
 	RttVarMs           uint32
 	DnsTimeMs          uint32
@@ -119,15 +121,15 @@ func readAll(b io.ReadCloser) (err error) {
 	return
 }
 
-func hops(ttl uint) uint16 {
+func hops(ttl uint) uint32 {
 	if ttl <= 64 {
-		return uint16(64 - ttl)
+		return uint32(64 - ttl)
 	} else if ttl <= 128 {
-		return uint16(128 - ttl)
+		return uint32(128 - ttl)
 	} else if ttl <= 256 {
-		return uint16(256 - ttl)
+		return uint32(256 - ttl)
 	} else {
-		return uint16(512 - ttl)
+		return uint32(512 - ttl)
 	}
 }
 
@@ -196,6 +198,7 @@ func HttpPing(req *http.Request, ping bool, srcAddr string) (*HttpInfo, error) {
 			port = "443"
 		}
 	}
+	httpInfo.Port, _ = strconv.Atoi(port)
 	remoteAddr, err := net.ResolveTCPAddr("tcp", addr.String()+":"+port)
 	if err != nil {
 		return nil, err
@@ -216,7 +219,7 @@ func HttpPing(req *http.Request, ping bool, srcAddr string) (*HttpInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	httpInfo.Code = uint16(resp.StatusCode)
+	httpInfo.Code = resp.StatusCode
 	err = readAll(resp.Body)
 	if err != nil {
 		return nil, err
