@@ -84,13 +84,16 @@ func (t *TcpWrapper) TTFB() time.Duration {
 }
 
 type HttpInfo struct {
+	Domain             string
+	Ip                 string
 	Code               uint16
 	Hops               uint16
 	RttMs              uint32
-	DnsTimeMs          int64
-	ConnectTimeMs      int64
-	TLSHandshakeTimeMs int64
-	TTFBMs             int64
+	RttVarMs           uint32
+	DnsTimeMs          uint32
+	ConnectTimeMs      uint32
+	TLSHandshakeTimeMs uint32
+	TTFBMs             uint32
 	ReTransmitPackets  uint32
 	Speed              float32 // unit kb/s
 	TotalSize          int64
@@ -130,7 +133,9 @@ func hops(ttl uint) uint16 {
 
 func copyTcpInfo(h *HttpInfo, t *network.TCPInfo) {
 	h.RttMs = t.RttMs
+	h.RttVarMs = t.RttVarMs
 	h.ReTransmitPackets = t.ReTransmitPackets
+
 }
 
 func HttpPingSimple(url string) (*HttpInfo, error) {
@@ -163,7 +168,7 @@ func HttpPing(req *http.Request, ping bool, srcAddr string) (*HttpInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	httpInfo.DnsTimeMs = time.Since(dnsStart).Milliseconds()
+	httpInfo.DnsTimeMs = uint32(time.Since(dnsStart).Milliseconds())
 	if ping {
 		go func() {
 			p, err := command.Ping(addr.String(), 1, 5, 1, srcAddr)
@@ -173,6 +178,8 @@ func HttpPing(req *http.Request, ping bool, srcAddr string) (*HttpInfo, error) {
 			pWait <- 1
 		}()
 	}
+	httpInfo.Domain = u.Hostname()
+	httpInfo.Ip = addr.String()
 
 	var localAddr *net.TCPAddr
 	if srcAddr != "" {
@@ -198,7 +205,7 @@ func HttpPing(req *http.Request, ping bool, srcAddr string) (*HttpInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	httpInfo.ConnectTimeMs = time.Since(connectStart).Milliseconds()
+	httpInfo.ConnectTimeMs = uint32(time.Since(connectStart).Milliseconds())
 	w := TcpWrapper{d: tcpConn}
 
 	client := &http.Client{Transport: &http.Transport{DialContext: w.Dial}}
@@ -221,7 +228,7 @@ func HttpPing(req *http.Request, ping bool, srcAddr string) (*HttpInfo, error) {
 	}
 	copyTcpInfo(&httpInfo, tcpInfo)
 	httpInfo.TotalSize = w.count
-	httpInfo.TTFBMs = w.TTFB().Milliseconds()
+	httpInfo.TTFBMs = uint32(w.TTFB().Milliseconds())
 	httpInfo.TotalTimeMs = endTime.Sub(connectStart).Milliseconds()
 	//use last write to calculate download speed to avoid small request that firstRead == endTime
 	httpInfo.Speed = float32(float64(w.count) / float64(endTime.Sub(w.lastWrite).Milliseconds()))
@@ -229,7 +236,7 @@ func HttpPing(req *http.Request, ping bool, srcAddr string) (*HttpInfo, error) {
 		<-pWait
 	}
 	if u.Scheme == "https" {
-		httpInfo.TLSHandshakeTimeMs = w.tlsHandshake.Milliseconds()
+		httpInfo.TLSHandshakeTimeMs = uint32(w.tlsHandshake.Milliseconds())
 	}
 	return &httpInfo, nil
 }

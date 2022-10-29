@@ -43,6 +43,7 @@ func (t *TCPInfoMac) common() *TCPInfo {
 	var tinfo TCPInfo
 	tinfo.ReTransmitPackets = uint32(t.Tcpi_txretransmitpackets)
 	tinfo.RttMs = t.Tcpi_srtt
+	tinfo.RttVarMs = t.Tcpi_rttvar
 	return &tinfo
 }
 

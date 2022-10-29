@@ -46,6 +46,7 @@ type TCPInfoLinux struct {
 func (t *TCPInfoLinux) common() *TCPInfo {
 	var tinfo TCPInfo
 	tinfo.RttMs = t.Rtt / 1000
+	tinfo.RttVarMs = t.Rttvar / 1000
 	tinfo.ReTransmitPackets = t.Total_retrans
 	return &tinfo
 }
