@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strconv"
 	"time"
+	"unsafe"
 
 	"github.com/qiniu/httpping/command"
 	"github.com/qiniu/httpping/network"
@@ -85,13 +86,13 @@ func (t *TcpWrapper) TTFB() time.Duration {
 }
 
 type HttpInfo struct {
+	Server             network.TCPInfo
+	Client             network.TCPInfo
 	Domain             string
 	Ip                 string
 	Port               int
 	Code               int
 	Hops               uint32
-	RttMs              uint32
-	RttVarMs           uint32
 	DnsTimeMs          uint32
 	ConnectTimeMs      uint32
 	TLSHandshakeTimeMs uint32
@@ -102,6 +103,7 @@ type HttpInfo struct {
 	TotalTimeMs        int64
 	Error              string
 	PingError          string
+	Loss               float32
 }
 
 func (h *HttpInfo) String() string {
@@ -109,8 +111,47 @@ func (h *HttpInfo) String() string {
 	return string(t)
 }
 
+func minInt(x, y int) int {
+	if x < y {
+		return x
+	} else {
+		return y
+	}
+}
+
+func readN(b io.ReadCloser, toRead int) (err error) {
+	d := make([]byte, 64*1024)
+	var n int
+	for {
+		need := minInt(len(d), toRead)
+		n, err = b.Read(d[:need])
+		if err != nil {
+			return
+		}
+		toRead -= n
+		if toRead <= 0 {
+			return
+		}
+	}
+	return
+}
+
+const (
+	infoSize = int(unsafe.Sizeof(network.TCPInfo{}))
+)
+
+func dealWithServerTcpInfo(b io.ReadCloser, contentLength int64, tcpInfo *network.TCPInfo) (err error) {
+	err = readN(b, int(contentLength)-infoSize)
+	if err != nil {
+		return
+	}
+	d := (*[infoSize]byte)(unsafe.Pointer(tcpInfo))[:]
+	_, err = io.ReadFull(b, d)
+	return
+}
+
 func readAll(b io.ReadCloser) (err error) {
-	d := make([]byte, 512*1024)
+	d := make([]byte, 64*1024)
 	for {
 		_, err = b.Read(d)
 		if err != nil {
@@ -135,13 +176,6 @@ func hops(ttl uint) uint32 {
 	}
 }
 
-func copyTcpInfo(h *HttpInfo, t *network.TCPInfo) {
-	h.RttMs = t.RttMs
-	h.RttVarMs = t.RttVarMs
-	h.ReTransmitPackets = t.ReTransmitPackets
-
-}
-
 func HttpPingSimple(url string) (*HttpInfo, error) {
 	return HttpPingGet(url, true, "")
 }
@@ -154,7 +188,7 @@ func HttpPingGet(url string, ping bool, srcAddr string) (*HttpInfo, error) {
 	return HttpPing(req, ping, srcAddr)
 }
 
-func HttpPing(req *http.Request, ping bool, srcAddr string) (*HttpInfo, error) {
+func HttpPingServerInfo(req *http.Request, ping bool, srcAddr string, serverSupport bool) (*HttpInfo, error) {
 	pWait := make(chan int, 1)
 	var httpInfo HttpInfo
 	u := req.URL
@@ -220,35 +254,64 @@ func HttpPing(req *http.Request, ping bool, srcAddr string) (*HttpInfo, error) {
 	if u.Scheme == "https" {
 		client = &http.Client{Transport: &http.Transport{DialTLSContext: w.DialTLS}}
 	}
+	if serverSupport {
+		req.Header.Set("X-HTTPPING-REQUIRE", "TCPINFO")
+	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		httpInfo.Error = err.Error()
 		return &httpInfo, nil
 	}
 	httpInfo.Code = resp.StatusCode
-	err = readAll(resp.Body)
-	if err != nil {
-		httpInfo.Error = err.Error()
-		return &httpInfo, nil
+	var done string
+	if serverSupport {
+		done = resp.Header.Get("X-HTTPPING-TCPINFO")
 	}
+	defer resp.Body.Close()
+	if done != "" && resp.ContentLength != 0 {
+		err = dealWithServerTcpInfo(resp.Body, resp.ContentLength, &httpInfo.Server)
+		if err != nil {
+			httpInfo.Error = err.Error()
+			return &httpInfo, nil
+		}
+	} else {
+		err = readAll(resp.Body)
+		if err != nil {
+			httpInfo.Error = err.Error()
+			return &httpInfo, nil
+		}
+	}
+
 	endTime := time.Now()
 	tcpInfo, err := network.GetSockoptTCPInfo(tcpConn)
 	if err != nil {
 		httpInfo.Error = err.Error()
 	} else {
-		copyTcpInfo(&httpInfo, tcpInfo)
+		httpInfo.Client = *tcpInfo
 	}
 
 	httpInfo.TotalSize = w.count
 	httpInfo.TTFBMs = uint32(w.TTFB().Milliseconds())
 	httpInfo.TotalTimeMs = endTime.Sub(connectStart).Milliseconds()
 	//use last write to calculate download speed to avoid small request that firstRead == endTime
-	httpInfo.Speed = float32(float64(w.count) / float64(endTime.Sub(w.lastWrite).Milliseconds()-int64(httpInfo.RttMs)))
+	httpInfo.Speed = float32(float64(w.count) / float64(endTime.Sub(w.lastWrite).Milliseconds()-int64(httpInfo.Client.RttMs)))
 	if ping {
 		<-pWait
 	}
 	if u.Scheme == "https" {
 		httpInfo.TLSHandshakeTimeMs = uint32(w.tlsHandshake.Milliseconds())
 	}
+	if httpInfo.Server.ReTransmitPackets != 0 {
+		totalPackets := httpInfo.Server.TotalPackets
+		if totalPackets == 0 {
+			totalPackets = uint32(w.count / 1460)
+		}
+		httpInfo.Loss = float32(httpInfo.Server.ReTransmitPackets/totalPackets) * 100.0
+	}
 	return &httpInfo, nil
+}
+
+func HttpPing(req *http.Request, ping bool, srcAddr string) (*HttpInfo, error) {
+	return HttpPingServerInfo(req, ping, srcAddr, false)
 }

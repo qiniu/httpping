@@ -13,6 +13,7 @@ func main() {
 	ping := flag.Bool("p", true, "with system ping command")
 	local := flag.String("l", "", "local address")
 	range_ := flag.String("r", "", "http range")
+	server := flag.Bool("s", false, "server support tcpinfo return")
 	flag.Parse()
 
 	req, err := http.NewRequest(http.MethodGet, *url, nil)
@@ -25,7 +26,7 @@ func main() {
 		req.Header.Set("Range", "bytes="+*range_)
 	}
 
-	info, err := h.HttpPing(req, *ping, *local)
+	info, err := h.HttpPingServerInfo(req, *ping, *local, *server)
 	if err != nil {
 		fmt.Println(err)
 		flag.PrintDefaults()
