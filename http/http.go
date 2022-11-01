@@ -295,7 +295,11 @@ func HttpPingServerInfo(req *http.Request, ping bool, srcAddr string, serverSupp
 	httpInfo.TTFBMs = uint32(w.TTFB().Milliseconds())
 	httpInfo.TotalTimeMs = endTime.Sub(connectStart).Milliseconds()
 	//use last write to calculate download speed to avoid small request that firstRead == endTime
-	httpInfo.Speed = float32(float64(w.count) / float64(endTime.Sub(w.lastWrite).Milliseconds()-int64(httpInfo.Client.RttMs)))
+	t := endTime.Sub(w.lastWrite).Milliseconds() - int64(httpInfo.Client.RttMs)
+	if t <= 0 {
+		t = 1
+	}
+	httpInfo.Speed = float32(float64(w.count) / float64(t))
 	if ping {
 		<-pWait
 	}
