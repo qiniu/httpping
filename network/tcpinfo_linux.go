@@ -9,14 +9,14 @@ import (
 	"unsafe"
 )
 
-func GetSockoptTCPInfo(tcpConn *net.TCPConn) (*TCPInfo, error) {
+func GetSockoptTCPInfo(tcpConn *net.TCPConn) (*TCPInfo, interface{}, error) {
 	if tcpConn == nil {
-		return nil, fmt.Errorf("tcp conn is nil")
+		return nil, nil, fmt.Errorf("tcp conn is nil")
 	}
 
 	rawConn, err := tcpConn.SyscallConn()
 	if err != nil {
-		return nil, fmt.Errorf("error getting raw connection. err=%v", err)
+		return nil, nil, fmt.Errorf("error getting raw connection. err=%v", err)
 	}
 
 	tcpInfo := TCPInfoLinux{}
@@ -27,12 +27,12 @@ func GetSockoptTCPInfo(tcpConn *net.TCPConn) (*TCPInfo, error) {
 			uintptr(unsafe.Pointer(&tcpInfo)), uintptr(unsafe.Pointer(&size)), 0)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("rawconn control failed. err=%v", err)
+		return nil, nil, fmt.Errorf("rawconn control failed. err=%v", err)
 	}
 
 	if errno != 0 {
-		return nil, fmt.Errorf("syscall failed. errno=%d", errno)
+		return nil, nil, fmt.Errorf("syscall failed. errno=%d", errno)
 	}
 
-	return tcpInfo.common(), nil
+	return tcpInfo.common(), &tcpInfo, nil
 }

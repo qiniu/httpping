@@ -210,8 +210,12 @@ func HttpPingServerInfo(req *http.Request, ping bool, srcAddr string, serverSupp
 	if ping {
 		go func() {
 			p, err := command.Ping(addr.String(), 1, 5, 1, srcAddr)
-			if err == nil && len(p.Replies) != 0 {
-				httpInfo.Hops = hops(p.Replies[0].TTL)
+			if err == nil {
+				if len(p.Replies) != 0 {
+					httpInfo.Hops = hops(p.Replies[0].TTL)
+				} else {
+					httpInfo.PingError = "ping wait more than 5s"
+				}
 			} else {
 				httpInfo.PingError = err.Error()
 			}
@@ -285,7 +289,7 @@ func HttpPingServerInfo(req *http.Request, ping bool, srcAddr string, serverSupp
 	}
 
 	endTime := time.Now()
-	tcpInfo, err := network.GetSockoptTCPInfo(tcpConn)
+	tcpInfo, _, err := network.GetSockoptTCPInfo(tcpConn)
 	if err != nil {
 		httpInfo.Error = err.Error()
 	} else {
