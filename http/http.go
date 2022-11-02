@@ -269,18 +269,19 @@ func HttpPingServerInfo(req *http.Request, ping bool, srcAddr string, serverSupp
 		done = resp.Header.Get("X-HTTPPING-TCPINFO")
 	}
 	defer resp.Body.Close()
-	if done != "" && resp.ContentLength != 0 {
+	if done != "" && resp.ContentLength > 0 {
 		err = dealWithServerTcpInfo(resp.Body, resp.ContentLength, &httpInfo.Server)
-		if err != nil {
-			httpInfo.Error = err.Error()
-			return &httpInfo, nil
-		}
+	} else if resp.ContentLength > 0 {
+		err = readN(resp.Body, int(resp.ContentLength))
 	} else {
 		err = readAll(resp.Body)
-		if err != nil {
-			httpInfo.Error = err.Error()
-			return &httpInfo, nil
-		}
+	}
+	if err == io.EOF {
+		err = nil
+	}
+	if err != nil {
+		httpInfo.Error = err.Error()
+		return &httpInfo, nil
 	}
 
 	endTime := time.Now()
@@ -306,13 +307,16 @@ func HttpPingServerInfo(req *http.Request, ping bool, srcAddr string, serverSupp
 	if u.Scheme == "https" {
 		httpInfo.TLSHandshakeTimeMs = uint32(w.tlsHandshake.Milliseconds())
 	}
-	if httpInfo.Server.ReTransmitPackets != 0 {
-		totalPackets := httpInfo.Server.TotalPackets
-		if totalPackets == 0 {
-			totalPackets = uint32(w.count / 1460)
+
+	if done != "" && resp.ContentLength != 0 {
+		if httpInfo.Server.TotalPackets == 0 {
+			httpInfo.Server.TotalPackets = uint32(w.count / 1460)
 		}
-		httpInfo.Loss = float32(httpInfo.Server.ReTransmitPackets/totalPackets) * 100.0
+		if httpInfo.Server.ReTransmitPackets != 0 {
+			httpInfo.Loss = float32(httpInfo.Server.ReTransmitPackets) / float32(httpInfo.Server.TotalPackets) * 100.0
+		}
 	}
+
 	return &httpInfo, nil
 }
 

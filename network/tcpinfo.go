@@ -5,7 +5,6 @@ type TCPInfo struct {
 	RttVarMs          uint32
 	ReTransmitPackets uint32
 	TotalPackets      uint32
-	Loss              float32
 }
 
 type TCPInfoLinux struct {
