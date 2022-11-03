@@ -20,6 +20,7 @@ func main() {
 	range_ := flag.String("r", "", "http range")
 	server := flag.Bool("s", false, "server support tcpinfo return")
 	hashStr := flag.String("hash", "", "body hash")
+	ua := flag.String("ua", "", "user agent")
 	flag.Parse()
 
 	req, err := http.NewRequest(http.MethodGet, *url, nil)
@@ -31,6 +32,9 @@ func main() {
 	if *range_ != "" {
 		req.Header.Set("Range", "bytes="+*range_)
 	}
+	if *ua != "" {
+		req.Header.Set("User-Agent", *ua)
+	}
 	var hasher hash.Hash
 	switch strings.ToLower(*hashStr) {
 	case "md5":
@@ -40,7 +44,14 @@ func main() {
 	case "crc":
 		hasher = crc32.NewIEEE()
 	}
-	info, err := h.HttpPingServerInfo(req, *ping, *local, *server, hasher)
+	p := h.Pinger{
+		Req:           req,
+		SysPing:       *ping,
+		SrcAddr:       *local,
+		ServerSupport: *server,
+		BodyHasher:    hasher,
+	}
+	info, err := p.Ping()
 	if err != nil {
 		fmt.Println(err)
 		flag.PrintDefaults()

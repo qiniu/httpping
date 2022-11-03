@@ -87,7 +87,15 @@ func (t *TcpWrapper) TTFB() time.Duration {
 	return t.firstRead.Sub(t.lastWrite)
 }
 
-type HttpInfo struct {
+type Pinger struct {
+	Req           *http.Request
+	SysPing       bool
+	SrcAddr       string
+	ServerSupport bool
+	BodyHasher    hash.Hash
+}
+
+type Info struct {
 	Server             network.TCPInfo
 	Client             network.TCPInfo
 	Domain             string
@@ -98,7 +106,7 @@ type HttpInfo struct {
 	DnsTimeMs          uint32
 	ConnectTimeMs      uint32
 	TLSHandshakeTimeMs uint32
-	TTFBMs             uint32
+	TtfbMs             uint32
 	ReTransmitPackets  uint32
 	Speed              float32 // unit kb/s
 	TotalSize          int64
@@ -109,7 +117,7 @@ type HttpInfo struct {
 	Loss               float32
 }
 
-func (h *HttpInfo) String() string {
+func (h *Info) String() string {
 	t, _ := json.MarshalIndent(h, "", "	")
 	return string(t)
 }
@@ -186,19 +194,19 @@ func hops(ttl uint) uint32 {
 	}
 }
 
-func HttpPingSimple(url string) (*HttpInfo, error) {
-	return HttpPingGet(url, true, "")
+func PingSimple(url string) (*Info, error) {
+	return PingGet(url, true, "")
 }
 
-func HttpPingGet(url string, ping bool, srcAddr string) (*HttpInfo, error) {
+func PingGet(url string, ping bool, srcAddr string) (*Info, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
-	return HttpPing(req, ping, srcAddr)
+	return Ping(req, ping, srcAddr)
 }
 
-func connect(httpInfo *HttpInfo, srcAddr string, remoteAddr *net.IPAddr, u *url.URL) (w *TcpWrapper, err error) {
+func connect(httpInfo *Info, srcAddr string, remoteAddr *net.IPAddr, u *url.URL) (w *TcpWrapper, err error) {
 	var localAddr *net.TCPAddr
 	if srcAddr != "" {
 		localAddr, err = net.ResolveTCPAddr("tcp", srcAddr+":0")
@@ -231,7 +239,7 @@ func connect(httpInfo *HttpInfo, srcAddr string, remoteAddr *net.IPAddr, u *url.
 	return w, nil
 }
 
-func pingF(httpInfo *HttpInfo, addr, srcAddr string, wait chan<- int) {
+func sysPing(httpInfo *Info, addr, srcAddr string, wait chan<- int) {
 	p, err := command.Ping(addr, 1, 5, 1, srcAddr)
 	if err == nil {
 		if len(p.Replies) != 0 {
@@ -245,17 +253,17 @@ func pingF(httpInfo *HttpInfo, addr, srcAddr string, wait chan<- int) {
 	wait <- 1
 }
 
-func HttpPingServerInfo(req *http.Request, ping bool, srcAddr string, serverSupport bool, bodyHasher hash.Hash) (*HttpInfo, error) {
+func (p *Pinger) Ping() (*Info, error) {
 	pWait := make(chan int, 1)
-	var httpInfo HttpInfo
-	u := req.URL
+	var httpInfo Info
+	u := p.Req.URL
 	var err error
 	if u.Scheme == "" {
 		u, err = url.Parse("http://" + u.String())
 		if err != nil {
 			return nil, err
 		}
-		req.URL = u
+		p.Req.URL = u
 	}
 
 	dnsStart := time.Now()
@@ -267,26 +275,26 @@ func HttpPingServerInfo(req *http.Request, ping bool, srcAddr string, serverSupp
 	httpInfo.Domain = u.Hostname()
 	httpInfo.Ip = addr.String()
 
-	if ping {
-		go pingF(&httpInfo, addr.String(), srcAddr, pWait)
+	if p.SysPing {
+		go sysPing(&httpInfo, addr.String(), p.SrcAddr, pWait)
 	}
 
 	connectStart := time.Now()
-	w, err := connect(&httpInfo, srcAddr, addr, u)
+	w, err := connect(&httpInfo, p.SrcAddr, addr, u)
 	if err != nil {
 		httpInfo.Error = err.Error()
 		return &httpInfo, nil
 	}
 	httpInfo.ConnectTimeMs = uint32(time.Since(connectStart).Milliseconds())
 
-	err = do(&httpInfo, req, w, u, serverSupport, bodyHasher)
+	err = do(&httpInfo, p.Req, w, u, p.ServerSupport, p.BodyHasher)
 	if err != nil {
 		return &httpInfo, nil
 	}
 
 	endTime := time.Now()
 	httpInfo.TotalSize = w.count
-	httpInfo.TTFBMs = uint32(w.TTFB().Milliseconds())
+	httpInfo.TtfbMs = uint32(w.TTFB().Milliseconds())
 	httpInfo.TotalTimeMs = endTime.Sub(connectStart).Milliseconds()
 	//use last write to calculate download speed to avoid small request that firstRead == endTime
 	t := endTime.Sub(w.lastWrite).Milliseconds() - int64(httpInfo.Client.RttMs)
@@ -294,20 +302,20 @@ func HttpPingServerInfo(req *http.Request, ping bool, srcAddr string, serverSupp
 		t = 1
 	}
 	httpInfo.Speed = float32(float64(w.count) / float64(t))
-	if ping {
+	if p.SysPing {
 		<-pWait
 	}
 	if u.Scheme == "https" {
 		httpInfo.TLSHandshakeTimeMs = uint32(w.tlsHandshake.Milliseconds())
 	}
-	if bodyHasher != nil {
-		httpInfo.Hash = hex.EncodeToString(bodyHasher.Sum(nil))
+	if p.BodyHasher != nil {
+		httpInfo.Hash = hex.EncodeToString(p.BodyHasher.Sum(nil))
 	}
 
 	return &httpInfo, nil
 }
 
-func do(httpInfo *HttpInfo, req *http.Request, w *TcpWrapper, u *url.URL, serverSupport bool, hasher hash.Hash) error {
+func do(httpInfo *Info, req *http.Request, w *TcpWrapper, u *url.URL, serverSupport bool, hasher hash.Hash) error {
 	client := &http.Client{Transport: &http.Transport{DialContext: w.Dial}}
 	if u.Scheme == "https" {
 		client = &http.Client{Transport: &http.Transport{DialTLSContext: w.DialTLS}}
@@ -361,6 +369,13 @@ func do(httpInfo *HttpInfo, req *http.Request, w *TcpWrapper, u *url.URL, server
 	return err
 }
 
-func HttpPing(req *http.Request, ping bool, srcAddr string) (*HttpInfo, error) {
-	return HttpPingServerInfo(req, ping, srcAddr, false, nil)
+func Ping(req *http.Request, ping bool, srcAddr string) (*Info, error) {
+	pinger := Pinger{
+		Req:           req,
+		SysPing:       ping,
+		SrcAddr:       srcAddr,
+		ServerSupport: false,
+		BodyHasher:    nil,
+	}
+	return pinger.Ping()
 }
