@@ -231,7 +231,7 @@ func connect(httpInfo *Info, srcAddr string, remoteAddr *net.IPAddr, u *url.URL)
 	conn, err := dialer.Dial("tcp", remoteAddr.String()+":"+port)
 	if err != nil {
 		httpInfo.Error = err.Error()
-		return nil, nil
+		return nil, err
 	}
 
 	tcpConn, _ := conn.(*net.TCPConn)
@@ -282,7 +282,6 @@ func (p *Pinger) Ping() (*Info, error) {
 	connectStart := time.Now()
 	w, err := connect(&httpInfo, p.SrcAddr, addr, u)
 	if err != nil {
-		httpInfo.Error = err.Error()
 		return &httpInfo, nil
 	}
 	httpInfo.ConnectTimeMs = uint32(time.Since(connectStart).Milliseconds())
