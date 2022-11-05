@@ -66,7 +66,7 @@ func (t *TcpWrapper) SetWriteDeadline(tm time.Time) error {
 	return t.d.SetWriteDeadline(tm)
 }
 
-func (t *TcpWrapper) Dial(_ context.Context, _, _ string) (net.Conn, error) {
+func (t *TcpWrapper) Dial(_ context.Context, network, addr string) (net.Conn, error) {
 	return t, nil
 }
 
@@ -305,9 +305,6 @@ func (p *Pinger) Ping() (*Info, error) {
 	if p.SysPing {
 		<-pWait
 	}
-	if u.Scheme == "https" {
-		httpInfo.TLSHandshakeTimeMs = uint32(w.tlsHandshake.Milliseconds())
-	}
 	if p.BodyHasher != nil {
 		httpInfo.Hash = hex.EncodeToString(p.BodyHasher.Sum(nil))
 	}
@@ -316,7 +313,11 @@ func (p *Pinger) Ping() (*Info, error) {
 }
 
 func do(httpInfo *Info, req *http.Request, w *TcpWrapper, u *url.URL, serverSupport bool, hasher hash.Hash) error {
-	client := &http.Client{Transport: &http.Transport{DialContext: w.Dial}}
+	client := &http.Client{
+		Transport: &http.Transport{DialContext: w.Dial},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}}
 	if u.Scheme == "https" {
 		client = &http.Client{Transport: &http.Transport{DialTLSContext: w.DialTLS}}
 	}
@@ -328,6 +329,9 @@ func do(httpInfo *Info, req *http.Request, w *TcpWrapper, u *url.URL, serverSupp
 	if err != nil {
 		httpInfo.Error = err.Error()
 		return err
+	}
+	if u.Scheme == "https" {
+		httpInfo.TLSHandshakeTimeMs = uint32(w.tlsHandshake.Milliseconds())
 	}
 	defer resp.Body.Close()
 	httpInfo.Code = resp.StatusCode
