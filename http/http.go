@@ -365,7 +365,7 @@ func do(httpInfo *Info, req *http.Request, w *TcpWrapper, u *url.URL, serverSupp
 		if httpInfo.Server.TotalPackets == 0 {
 			httpInfo.Server.TotalPackets = uint32(w.count / 1460)
 			if httpInfo.Server.TotalPackets == 0 {
-				httpInfo.Server.TotalPackets += 1
+				httpInfo.Server.TotalPackets = 1
 			}
 		}
 		if httpInfo.Server.ReTransmitPackets != 0 {
