@@ -21,6 +21,7 @@ func main() {
 	server := flag.Bool("s", false, "server support tcpinfo return")
 	hashStr := flag.String("hash", "", "body hash")
 	ua := flag.String("ua", "", "user agent")
+	redirect := flag.Bool("redirect", false, "enable redirect")
 	flag.Parse()
 
 	req, err := http.NewRequest(http.MethodGet, *url, nil)
@@ -50,6 +51,7 @@ func main() {
 		SrcAddr:       *local,
 		ServerSupport: *server,
 		BodyHasher:    hasher,
+		Redirect:      *redirect,
 	}
 	info, err := p.Ping()
 	if err != nil {

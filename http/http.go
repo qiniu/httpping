@@ -1,16 +1,12 @@
 package http
 
 import (
-	"context"
-	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"hash"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 	"time"
 	"unsafe"
 
@@ -18,81 +14,13 @@ import (
 	"github.com/qiniu/httpping/network"
 )
 
-type TcpWrapper struct {
-	d            *net.TCPConn
-	count        int64
-	lastWrite    time.Time
-	firstRead    *time.Time
-	tlsHandshake time.Duration
-}
-
-func (t *TcpWrapper) Read(b []byte) (n int, err error) {
-	n, err = t.d.Read(b)
-	t.count += int64(n)
-	if t.firstRead == nil {
-		tm := time.Now()
-		t.firstRead = &tm
-	}
-	return
-}
-
-func (t *TcpWrapper) Write(b []byte) (n int, err error) {
-	n, err = t.d.Write(b)
-	t.lastWrite = time.Now()
-	return
-}
-
-func (t *TcpWrapper) Close() error {
-	return t.d.Close()
-}
-
-func (t *TcpWrapper) LocalAddr() net.Addr {
-	return t.d.LocalAddr()
-}
-
-func (t *TcpWrapper) RemoteAddr() net.Addr {
-	return t.d.RemoteAddr()
-}
-
-func (t *TcpWrapper) SetDeadline(tm time.Time) error {
-	return t.d.SetDeadline(tm)
-}
-
-func (t *TcpWrapper) SetReadDeadline(tm time.Time) error {
-	return t.d.SetReadDeadline(tm)
-}
-
-func (t *TcpWrapper) SetWriteDeadline(tm time.Time) error {
-	return t.d.SetWriteDeadline(tm)
-}
-
-func (t *TcpWrapper) Dial(_ context.Context, network, addr string) (net.Conn, error) {
-	return t, nil
-}
-
-func (t *TcpWrapper) DialTLS(ctx context.Context, _, _ string) (net.Conn, error) {
-	cfg := tls.Config{InsecureSkipVerify: true}
-	cl := tls.Client(t, &cfg)
-	start := time.Now()
-	err := cl.HandshakeContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-	t.tlsHandshake = time.Since(start)
-	t.firstRead = nil //reset for https
-	return cl, nil
-}
-
-func (t *TcpWrapper) TTFB() time.Duration {
-	return t.firstRead.Sub(t.lastWrite)
-}
-
 type Pinger struct {
 	Req           *http.Request
 	SysPing       bool
 	SrcAddr       string
 	ServerSupport bool
 	BodyHasher    hash.Hash
+	Redirect      bool
 }
 
 type Info struct {
@@ -136,12 +64,16 @@ func readN(b io.ReadCloser, toRead int, hasher hash.Hash) (err error) {
 	for {
 		need := minInt(len(d), toRead)
 		n, err = b.Read(d[:need])
-		if err != nil {
-			return
-		}
-		if hasher != nil {
+		if hasher != nil && n > 0 {
 			hasher.Write(d[:n])
 		}
+		if err != nil {
+			if err == io.EOF {
+				err = nil
+			}
+			return
+		}
+
 		toRead -= n
 		if toRead <= 0 {
 			return
@@ -169,11 +101,11 @@ func readAll(b io.ReadCloser, hasher hash.Hash) (err error) {
 	var n int
 	for {
 		n, err = b.Read(d)
+		if hasher != nil && n > 0 {
+			hasher.Write(d[:n])
+		}
 		if err != nil {
 			break
-		}
-		if hasher != nil {
-			hasher.Write(d[:n])
 		}
 	}
 	if err == io.EOF {
@@ -206,39 +138,6 @@ func PingGet(url string, ping bool, srcAddr string) (*Info, error) {
 	return Ping(req, ping, srcAddr)
 }
 
-func connect(httpInfo *Info, srcAddr string, remoteAddr *net.IPAddr, u *url.URL) (w *TcpWrapper, err error) {
-	var localAddr *net.TCPAddr
-	if srcAddr != "" {
-		localAddr, err = net.ResolveTCPAddr("tcp", srcAddr+":0")
-		if err != nil {
-			return nil, err
-		}
-	}
-	port := u.Port()
-	if port == "" {
-		if u.Scheme == "http" || u.Scheme == "" {
-			port = "80"
-		} else if u.Scheme == "https" {
-			port = "443"
-		}
-	}
-	httpInfo.Port, _ = strconv.Atoi(port)
-	dialer := net.Dialer{
-		Timeout:   time.Second,
-		Deadline:  time.Time{},
-		LocalAddr: localAddr,
-	}
-	conn, err := dialer.Dial("tcp", remoteAddr.String()+":"+port)
-	if err != nil {
-		httpInfo.Error = err.Error()
-		return nil, err
-	}
-
-	tcpConn, _ := conn.(*net.TCPConn)
-	w = &TcpWrapper{d: tcpConn}
-	return w, nil
-}
-
 func sysPing(httpInfo *Info, addr, srcAddr string, wait chan<- int) {
 	p, err := command.Ping(addr, 1, 5, 1, srcAddr)
 	if err == nil {
@@ -266,35 +165,22 @@ func (p *Pinger) Ping() (*Info, error) {
 		p.Req.URL = u
 	}
 
-	dnsStart := time.Now()
-	addr, err := net.ResolveIPAddr("ip", u.Hostname())
-	if err != nil {
-		return nil, err
-	}
-	httpInfo.DnsTimeMs = uint32(time.Since(dnsStart).Milliseconds())
-	httpInfo.Domain = u.Hostname()
-	httpInfo.Ip = addr.String()
+	w := &TcpWrapper{}
 
 	if p.SysPing {
-		go sysPing(&httpInfo, addr.String(), p.SrcAddr, pWait)
+		w.ping = func(addr string) {
+			sysPing(&httpInfo, addr, p.SrcAddr, pWait)
+		}
 	}
 
-	connectStart := time.Now()
-	w, err := connect(&httpInfo, p.SrcAddr, addr, u)
-	if err != nil {
-		return &httpInfo, nil
-	}
-	httpInfo.ConnectTimeMs = uint32(time.Since(connectStart).Milliseconds())
-
-	err = do(&httpInfo, p.Req, w, u, p.ServerSupport, p.BodyHasher)
+	err = p.do(&httpInfo, w)
 	if err != nil {
 		return &httpInfo, nil
 	}
 
 	endTime := time.Now()
 	httpInfo.TotalSize = w.count
-	httpInfo.TtfbMs = uint32(w.TTFB().Milliseconds())
-	httpInfo.TotalTimeMs = endTime.Sub(connectStart).Milliseconds()
+	httpInfo.TotalTimeMs = endTime.Sub(w.connectStart).Milliseconds()
 	//use last write to calculate download speed to avoid small request that firstRead == endTime
 	t := endTime.Sub(w.lastWrite).Milliseconds() - int64(httpInfo.Client.RttMs)
 	if t <= 0 {
@@ -311,40 +197,47 @@ func (p *Pinger) Ping() (*Info, error) {
 	return &httpInfo, nil
 }
 
-func do(httpInfo *Info, req *http.Request, w *TcpWrapper, u *url.URL, serverSupport bool, hasher hash.Hash) error {
+func (p *Pinger) do(httpInfo *Info, w *TcpWrapper) error {
 	client := &http.Client{
-		Transport: &http.Transport{DialContext: w.Dial},
+		Transport: &http.Transport{DialContext: w.Dial, DialTLSContext: w.DialTLS},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if p.Redirect {
+				return nil
+			}
 			return http.ErrUseLastResponse
 		}}
-	if u.Scheme == "https" {
-		client = &http.Client{Transport: &http.Transport{DialTLSContext: w.DialTLS}}
-	}
-	if serverSupport {
-		req.Header.Set("X-HTTPPING-REQUIRE", "TCPINFO")
+	if p.ServerSupport {
+		p.Req.Header.Set("X-HTTPPING-REQUIRE", "TCPINFO")
 	}
 
-	resp, err := client.Do(req)
+	resp, err := client.Do(p.Req)
+	httpInfo.Domain = w.domain
+	if w.remoteAddr != nil {
+		httpInfo.Ip = w.remoteAddr.IP.String()
+		httpInfo.Port = w.remoteAddr.Port
+		httpInfo.DnsTimeMs = uint32(w.dnsTime.Milliseconds())
+	}
+
 	if err != nil {
 		httpInfo.Error = err.Error()
 		return err
 	}
-	if u.Scheme == "https" {
-		httpInfo.TLSHandshakeTimeMs = uint32(w.tlsHandshake.Milliseconds())
-	}
+	httpInfo.ConnectTimeMs = uint32(w.tcpHandshake.Milliseconds())
+	httpInfo.TLSHandshakeTimeMs = uint32(w.tlsHandshake.Milliseconds())
+	httpInfo.TtfbMs = uint32(w.TTFB().Milliseconds())
 	defer resp.Body.Close()
 	httpInfo.Code = resp.StatusCode
 	var done string
-	if serverSupport {
+	if p.ServerSupport {
 		done = resp.Header.Get("X-HTTPPING-TCPINFO")
 	}
 	defer resp.Body.Close()
 	if done != "" && resp.ContentLength > 0 {
 		err = dealWithServerTcpInfo(resp.Body, resp.ContentLength, &httpInfo.Server)
 	} else if resp.ContentLength > 0 {
-		err = readN(resp.Body, int(resp.ContentLength), hasher)
+		err = readN(resp.Body, int(resp.ContentLength), p.BodyHasher)
 	} else {
-		err = readAll(resp.Body, hasher)
+		err = readAll(resp.Body, p.BodyHasher)
 	}
 	if err == io.EOF {
 		err = nil
@@ -370,6 +263,7 @@ func do(httpInfo *Info, req *http.Request, w *TcpWrapper, u *url.URL, serverSupp
 		}
 		if httpInfo.Server.ReTransmitPackets != 0 {
 			httpInfo.Loss = float32(httpInfo.Server.ReTransmitPackets) / float32(httpInfo.Server.TotalPackets) * 100.0
+			httpInfo.ReTransmitPackets = httpInfo.Server.ReTransmitPackets
 		}
 	}
 	return err
