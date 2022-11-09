@@ -21,6 +21,7 @@ type Pinger struct {
 	ServerSupport bool
 	BodyHasher    hash.Hash
 	Redirect      bool
+	Timeout       time.Duration
 }
 
 type Info struct {
@@ -205,7 +206,8 @@ func (p *Pinger) do(httpInfo *Info, w *TcpWrapper) error {
 				return nil
 			}
 			return http.ErrUseLastResponse
-		}}
+		}, Timeout: p.Timeout,
+	}
 	if p.ServerSupport {
 		p.Req.Header.Set("X-HTTPPING-REQUIRE", "TCPINFO")
 	}

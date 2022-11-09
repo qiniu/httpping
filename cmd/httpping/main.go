@@ -9,6 +9,7 @@ import (
 	"hash/crc32"
 	"net/http"
 	"strings"
+	"time"
 
 	h "github.com/qiniu/httpping/http"
 )
@@ -22,6 +23,7 @@ func main() {
 	hashStr := flag.String("hash", "", "body hash")
 	ua := flag.String("ua", "", "user agent")
 	redirect := flag.Bool("redirect", false, "enable redirect")
+	timeout := flag.Int64("timeout", 10, "total timeout, seconds")
 	flag.Parse()
 
 	req, err := http.NewRequest(http.MethodGet, *url, nil)
@@ -52,6 +54,7 @@ func main() {
 		ServerSupport: *server,
 		BodyHasher:    hasher,
 		Redirect:      *redirect,
+		Timeout:       time.Duration(*timeout) * time.Second,
 	}
 	info, err := p.Ping()
 	if err != nil {
