@@ -18,6 +18,10 @@ func Ping(ipV4Address string, interval, timeout int, count int, sourceAddr strin
 		exitCode            int
 	)
 	var pingArgs = []string{"-n", "-i", strconv.Itoa(interval), "-c", strconv.Itoa(count)}
+	if sourceAddr != "" {
+		array := strings.Split(sourceAddr, ":")
+		sourceAddr = array[0]
+	}
 	if runtime.GOOS == "darwin" {
 		if sourceAddr != "" {
 			pingArgs = append(pingArgs, "-S", sourceAddr)

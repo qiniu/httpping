@@ -1,5 +1,10 @@
 package network
 
+import (
+	"errors"
+	"syscall"
+)
+
 type TCPInfo struct {
 	RttMs             uint32
 	RttVarMs          uint32
@@ -176,4 +181,8 @@ func (t *TCPInfoMac) common() *TCPInfo {
 	tinfo.RttVarMs = t.Tcpi_rttvar
 	tinfo.TotalPackets = uint32(t.Tcpi_txpackets)
 	return &tinfo
+}
+
+func IsEADDRINUSE(err error) bool {
+	return errors.Is(err, syscall.EADDRINUSE)
 }

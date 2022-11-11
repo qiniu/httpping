@@ -47,6 +47,7 @@ func main() {
 	case "crc":
 		hasher = crc32.NewIEEE()
 	}
+
 	p := h.Pinger{
 		Req:           req,
 		SysPing:       *ping,
@@ -62,6 +63,6 @@ func main() {
 		flag.PrintDefaults()
 		return
 	}
-
 	fmt.Println(info.String())
+
 }

@@ -166,7 +166,7 @@ func (p *Pinger) Ping() (*Info, error) {
 		p.Req.URL = u
 	}
 
-	w := &TcpWrapper{}
+	w := &TcpWrapper{localAddr: p.SrcAddr}
 
 	if p.SysPing {
 		w.ping = func(addr string) {
@@ -227,13 +227,14 @@ func (p *Pinger) do(httpInfo *Info, w *TcpWrapper) error {
 	httpInfo.ConnectTimeMs = uint32(w.tcpHandshake.Milliseconds())
 	httpInfo.TLSHandshakeTimeMs = uint32(w.tlsHandshake.Milliseconds())
 	httpInfo.TtfbMs = uint32(w.TTFB().Milliseconds())
+
+	defer w.Close()
 	defer resp.Body.Close()
 	httpInfo.Code = resp.StatusCode
 	var done string
 	if p.ServerSupport {
 		done = resp.Header.Get("X-HTTPPING-TCPINFO")
 	}
-	defer resp.Body.Close()
 	if done != "" && resp.ContentLength > 0 {
 		err = dealWithServerTcpInfo(resp.Body, resp.ContentLength, &httpInfo.Server)
 	} else if resp.ContentLength > 0 {

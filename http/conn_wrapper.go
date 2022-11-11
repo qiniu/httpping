@@ -4,8 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
+
+	"github.com/qiniu/httpping/network"
 )
 
 type TcpWrapper struct {
@@ -41,7 +45,10 @@ func (t *TcpWrapper) Write(b []byte) (n int, err error) {
 }
 
 func (t *TcpWrapper) Close() error {
-	return t.d.Close()
+	if t.d != nil {
+		return t.d.Close()
+	}
+	return nil
 }
 
 func (t *TcpWrapper) LocalAddr() net.Addr {
@@ -76,21 +83,56 @@ func (t *TcpWrapper) resolve(addrStr string) error {
 	return nil
 }
 
+const base = 51200
+
+var portNum atomic.Uint64
+
+func newPort() int {
+	x := portNum.Add(1) % 12800
+	return int(base + x)
+}
+
 func (t *TcpWrapper) connect() (err error) {
 	var localAddr *net.TCPAddr
+	var randAddr = false
 	if t.localAddr != "" {
-		localAddr, err = net.ResolveTCPAddr("tcp", t.localAddr+":0")
+		if !strings.Contains(t.localAddr, ":") {
+			localAddr, err = net.ResolveTCPAddr("tcp", t.localAddr+":0")
+			if err != nil {
+				return err
+			}
+		} else {
+			localAddr, err = net.ResolveTCPAddr("tcp", t.localAddr)
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+		randAddr = true
+	}
+	if t.d != nil {
+		_ = t.d.Close()
+	}
+
+dial:
+	if randAddr {
+		localAddr, err = net.ResolveTCPAddr("tcp", ":"+strconv.Itoa(newPort()))
 		if err != nil {
 			return err
 		}
 	}
+
 	dialer := net.Dialer{
 		Timeout:   time.Second,
 		LocalAddr: localAddr,
 	}
+
 	t.connectStart = time.Now()
 	conn, err := dialer.Dial("tcp", t.remoteAddr.String())
 	if err != nil {
+		if randAddr && network.IsEADDRINUSE(err) {
+			goto dial
+		}
 		return err
 	}
 	t.tcpHandshake = time.Since(t.connectStart)
