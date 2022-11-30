@@ -98,11 +98,12 @@ func getConnInfo(tcpConn *net.TCPConn) (*TCPInfoWindows, error) {
 	rod := TCPInfoWindows{}
 	rodsize := unsafe.Sizeof(rod)
 
-	r1, _, _ := syscall.Syscall9(procGetPerTcpConnectionEStats.Addr(),
+	r1, _, _ := syscall.Syscall12(procGetPerTcpConnectionEStats.Addr(),
 		uintptr(unsafe.Pointer(&row)), TcpConnectionEstatsPath,
 		uintptr(0), 0, 0,
 		uintptr(0), 0, 0,
-		uintptr(unsafe.Pointer(&rod)), rodsize)
+		uintptr(unsafe.Pointer(&rod)), 0, rodsize,
+		0, 0)
 	if r1 != 0 {
 		errcode := syscall.Errno(r1)
 		fmt.Println(errcode)
