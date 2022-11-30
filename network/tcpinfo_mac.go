@@ -1,4 +1,4 @@
-//go:build amd64 && darwin
+//go:build darwin
 
 package network
 
@@ -16,7 +16,6 @@ func GetSockoptTCPInfo(tcpConn *net.TCPConn) (*TCPInfo, interface{}, error) {
 	if tcpConn == nil {
 		return nil, nil, fmt.Errorf("tcp conn is nil")
 	}
-
 	rawConn, err := tcpConn.SyscallConn()
 	if err != nil {
 		return nil, nil, fmt.Errorf("error getting raw connection. err=%v", err)

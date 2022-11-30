@@ -186,3 +186,56 @@ func (t *TCPInfoMac) common() *TCPInfo {
 func IsEADDRINUSE(err error) bool {
 	return errors.Is(err, syscall.EADDRINUSE)
 }
+
+// https://learn.microsoft.com/en-us/windows/win32/api/tcpestats/ns-tcpestats-tcp_estats_path_rod_v0
+type TCPInfoWindows struct {
+	FastRetran            uint32
+	Timeouts              uint32
+	SubsequentTimeouts    uint32
+	CurTimeoutCount       uint32
+	AbruptTimeouts        uint32
+	PktsRetrans           uint32
+	BytesRetrans          uint32
+	DupAcksIn             uint32
+	SacksRcvd             uint32
+	SackBlocksRcvd        uint32
+	CongSignals           uint32
+	PreCongSumCwnd        uint32
+	PreCongSumRtt         uint32
+	PostCongSumRtt        uint32
+	PostCongCountRtt      uint32
+	EcnSignals            uint32
+	EceRcvd               uint32
+	SendStall             uint32
+	QuenchRcvd            uint32
+	RetranThresh          uint32
+	SndDupAckEpisodes     uint32
+	SumBytesReordered     uint32
+	NonRecovDa            uint32
+	NonRecovDaEpisodes    uint32
+	AckAfterFr            uint32
+	DsackDups             uint32
+	SampleRtt             uint32
+	SmoothedRtt           uint32
+	RttVar                uint32
+	MaxRtt                uint32
+	MinRtt                uint32
+	SumRtt                uint32
+	CountRtt              uint32
+	CurRto                uint32
+	MaxRto                uint32
+	MinRto                uint32
+	CurMss                uint32
+	MaxMss                uint32
+	MinMss                uint32
+	SpuriousRtoDetections uint32
+}
+
+func (t *TCPInfoWindows) common() *TCPInfo {
+	var tinfo TCPInfo
+	tinfo.ReTransmitPackets = t.PktsRetrans
+	tinfo.RttMs = t.SampleRtt // ? t.SumRtt / t.CountRtt
+	tinfo.RttVarMs = t.RttVar
+	tinfo.TotalPackets = 0
+	return &tinfo
+}

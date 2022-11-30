@@ -64,5 +64,4 @@ func main() {
 		return
 	}
 	fmt.Println(info.String())
-
 }
