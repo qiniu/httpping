@@ -26,6 +26,7 @@ type TcpWrapper struct {
 	localAddr    string
 	domain       string
 	error        string
+	rounds       []RoundTime
 }
 
 func (t *TcpWrapper) Read(b []byte) (n int, err error) {
@@ -92,6 +93,21 @@ func newPort() int {
 	return int(base + x)
 }
 
+func (t *TcpWrapper) recordPrev() {
+	r := RoundTime{
+		Domain:             t.domain,
+		Ip:                 t.remoteAddr.IP.String(),
+		Port:               t.remoteAddr.Port,
+		DnsTimeMs:          uint32(t.dnsTime.Milliseconds()),
+		ConnectTimeMs:      uint32(t.tcpHandshake.Milliseconds()),
+		TLSHandshakeTimeMs: uint32(t.tlsHandshake.Milliseconds()),
+		TtfbMs:             uint32(t.TTFB().Milliseconds()),
+		TotalSize:          t.count,
+		TotalTimeMs:        time.Now().Sub(t.connectStart).Milliseconds(),
+	}
+	t.rounds = append(t.rounds, r)
+}
+
 func (t *TcpWrapper) connect() (err error) {
 	var localAddr *net.TCPAddr
 	var randAddr = false
@@ -109,9 +125,6 @@ func (t *TcpWrapper) connect() (err error) {
 		}
 	} else {
 		randAddr = true
-	}
-	if t.d != nil {
-		_ = t.d.Close()
 	}
 
 dial:
@@ -142,6 +155,10 @@ dial:
 }
 
 func (t *TcpWrapper) Dial(_ context.Context, network, addr string) (conn net.Conn, err error) {
+	if t.d != nil {
+		t.recordPrev()
+		_ = t.d.Close()
+	}
 	err = t.resolve(addr)
 	if err != nil {
 		return nil, err

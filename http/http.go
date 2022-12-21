@@ -24,6 +24,18 @@ type Pinger struct {
 	Timeout       time.Duration
 }
 
+type RoundTime struct {
+	Domain             string
+	Ip                 string
+	Port               int
+	DnsTimeMs          uint32
+	ConnectTimeMs      uint32
+	TLSHandshakeTimeMs uint32
+	TtfbMs             uint32
+	TotalSize          int64
+	TotalTimeMs        int64
+}
+
 type Info struct {
 	Server             network.TCPInfo
 	Client             network.TCPInfo
@@ -44,6 +56,7 @@ type Info struct {
 	PingError          string
 	Hash               string
 	Loss               float32
+	Rounds             []RoundTime
 }
 
 func (h *Info) String() string {
@@ -248,6 +261,9 @@ func (p *Pinger) do(httpInfo *Info, w *TcpWrapper) error {
 	if err != nil {
 		httpInfo.Error = err.Error()
 		return err
+	}
+	if w.rounds != nil {
+		httpInfo.Rounds = w.rounds
 	}
 
 	tcpInfo, _, err := network.GetSockoptTCPInfo(w.d)
