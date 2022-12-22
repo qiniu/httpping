@@ -22,6 +22,8 @@ type Pinger struct {
 	BodyHasher    hash.Hash
 	Redirect      bool
 	Timeout       time.Duration
+	ServerIp      string
+	VerifyHost    bool
 }
 
 type RoundTime struct {
@@ -179,7 +181,7 @@ func (p *Pinger) Ping() (*Info, error) {
 		p.Req.URL = u
 	}
 
-	w := &TcpWrapper{localAddr: p.SrcAddr}
+	w := &TcpWrapper{localAddr: p.SrcAddr, ip: p.ServerIp, verifyHost: p.VerifyHost}
 
 	if p.SysPing {
 		w.ping = func(addr string) {

@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"net"
 	"strconv"
 	"strings"
@@ -13,6 +14,8 @@ import (
 )
 
 type TcpWrapper struct {
+	ip           string
+	verifyHost   bool
 	ping         func(addr string)
 	d            *net.TCPConn
 	count        int64
@@ -73,6 +76,14 @@ func (t *TcpWrapper) SetWriteDeadline(tm time.Time) error {
 }
 
 func (t *TcpWrapper) resolve(addrStr string) error {
+	ss := strings.Split(addrStr, ":")
+	if t.d == nil && t.ip != "" {
+		if len(ss) < 2 {
+			return errors.New("invalid addr")
+		}
+		port := ss[len(ss)-1]
+		addrStr = t.ip + ":" + port
+	}
 	dnsStart := time.Now()
 	addr, err := net.ResolveTCPAddr("tcp", addrStr)
 	if err != nil {
@@ -80,7 +91,7 @@ func (t *TcpWrapper) resolve(addrStr string) error {
 	}
 	t.dnsTime = time.Since(dnsStart)
 	t.remoteAddr = addr
-	t.domain = strings.Split(addrStr, ":")[0]
+	t.domain = ss[0]
 	return nil
 }
 
@@ -176,7 +187,7 @@ func (t *TcpWrapper) DialTLS(ctx context.Context, network, addr string) (conn ne
 	if err != nil {
 		return nil, err
 	}
-	cfg := tls.Config{InsecureSkipVerify: true}
+	cfg := tls.Config{ServerName: strings.Split(addr, ":")[0], InsecureSkipVerify: !t.verifyHost}
 	cl := tls.Client(td, &cfg)
 	start := time.Now()
 	err = cl.HandshakeContext(ctx)

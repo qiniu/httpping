@@ -11,7 +11,7 @@ import (
 	"syscall"
 )
 
-// Ping will ping the specified IPv4 address wit the provided timeout, interval and size settings .
+// Ping will ping the specified IPv4 address with the provided timeout, interval and size settings .
 func Ping(ipV4Address string, interval, timeout int, count int, sourceAddr string) (*PingOutput, error) {
 	var (
 		output, errorOutput bytes.Buffer

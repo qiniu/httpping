@@ -24,6 +24,8 @@ func main() {
 	ua := flag.String("ua", "", "user agent")
 	redirect := flag.Bool("redirect", false, "enable redirect")
 	timeout := flag.Int64("timeout", 10, "total timeout, seconds")
+	ip := flag.String("ip", "", "server ip")
+	verifyHost := flag.Bool("verify", true, "verify host cert")
 	flag.Parse()
 
 	req, err := http.NewRequest(http.MethodGet, *url, nil)
@@ -56,6 +58,8 @@ func main() {
 		BodyHasher:    hasher,
 		Redirect:      *redirect,
 		Timeout:       time.Duration(*timeout) * time.Second,
+		ServerIp:      *ip,
+		VerifyHost:    *verifyHost,
 	}
 	info, err := p.Ping()
 	if err != nil {
