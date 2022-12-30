@@ -3,7 +3,6 @@ package http
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"net"
 	"strconv"
 	"strings"
@@ -76,13 +75,12 @@ func (t *TcpWrapper) SetWriteDeadline(tm time.Time) error {
 }
 
 func (t *TcpWrapper) resolve(addrStr string) error {
-	ss := strings.Split(addrStr, ":")
+	host, port, err := net.SplitHostPort(addrStr)
 	if t.d == nil && t.ip != "" {
-		if len(ss) < 2 {
-			return errors.New("invalid addr")
+		if err != nil {
+			return err
 		}
-		port := ss[len(ss)-1]
-		addrStr = t.ip + ":" + port
+		addrStr = net.JoinHostPort(t.ip, port)
 	}
 	dnsStart := time.Now()
 	addr, err := net.ResolveTCPAddr("tcp", addrStr)
@@ -91,7 +89,7 @@ func (t *TcpWrapper) resolve(addrStr string) error {
 	}
 	t.dnsTime = time.Since(dnsStart)
 	t.remoteAddr = addr
-	t.domain = ss[0]
+	t.domain = host
 	return nil
 }
 
