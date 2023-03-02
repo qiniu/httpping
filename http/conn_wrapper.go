@@ -184,8 +184,8 @@ func (t *TcpWrapper) Dial(_ context.Context, network, addr string) (conn net.Con
 	if err != nil {
 		return nil, err
 	}
-	if t.d == nil {
-		//go t.ping(t.remoteAddr.IP.String())
+	if t.d == nil && t.ping != nil {
+		go t.ping(t.remoteAddr.IP.String())
 	}
 	t.firstRead = nil
 	err = t.connect()
