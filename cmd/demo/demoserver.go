@@ -3,11 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/qiniu/httpping/network"
 	"net"
 	"net/http"
 	"strconv"
 	"unsafe"
+
+	"github.com/qiniu/httpping/network"
 )
 
 type contextKey struct {

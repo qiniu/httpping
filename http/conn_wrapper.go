@@ -54,6 +54,18 @@ func (t *TcpWrapper) Close() error {
 	return nil
 }
 
+func (t *TcpWrapper) TcpHandshake() time.Duration {
+	return t.tcpHandshake
+}
+
+func (t *TcpWrapper) TlsHandshake() time.Duration {
+	return t.tlsHandshake
+}
+
+func (t *TcpWrapper) DnsTime() time.Duration {
+	return t.dnsTime
+}
+
 func (t *TcpWrapper) LocalAddr() net.Addr {
 	return t.d.LocalAddr()
 }
@@ -172,7 +184,7 @@ func (t *TcpWrapper) Dial(_ context.Context, network, addr string) (conn net.Con
 	if err != nil {
 		return nil, err
 	}
-	if t.d == nil {
+	if t.d == nil && t.ping != nil {
 		go t.ping(t.remoteAddr.IP.String())
 	}
 	t.firstRead = nil
