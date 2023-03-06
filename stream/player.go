@@ -66,7 +66,7 @@ func (p *Player) Do() {
 
 		case pkt := <-p.ch:
 			if pkt.pktType == PktVideo {
-				log.Println("video pkt pts=", time.Duration(pkt.pts)*time.Millisecond, len(p.vqueue))
+				//log.Println("video pkt pts=", time.Duration(pkt.pts)*time.Millisecond, len(p.vqueue))
 				if !hasVideo {
 					hasVideo = true
 					p.info.FirstVideoPktTimeMs = uint32(time.Since(p.info.StartTime).Milliseconds())
