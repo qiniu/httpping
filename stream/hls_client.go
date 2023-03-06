@@ -2,14 +2,15 @@ package stream
 
 import (
 	"context"
-	"github.com/grafov/m3u8"
-	mhttp "github.com/qiniu/httpping/http"
 	"io"
 	"log"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/grafov/m3u8"
+	mhttp "github.com/qiniu/httpping/http"
 )
 
 type HlsClient struct {
