@@ -88,6 +88,6 @@ func (c *FlvClient) Read() (*AVPacket, error) {
 
 func (c *FlvClient) Close() {
 	if c.response != nil {
-		c.response.Body.Close()
+		_ = c.response.Body.Close()
 	}
 }

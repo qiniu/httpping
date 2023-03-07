@@ -87,12 +87,12 @@ func readN(b io.ReadCloser, toRead int, hasher hash.Hash) (err error) {
 			if err == io.EOF {
 				err = nil
 			}
-			return
+			break
 		}
 
 		toRead -= n
 		if toRead <= 0 {
-			return
+			break
 		}
 	}
 	return
@@ -268,7 +268,7 @@ func (p *Pinger) do(httpInfo *Info, w *TcpWrapper) error {
 		httpInfo.Rounds = w.rounds
 	}
 
-	tcpInfo, _, err := network.GetSockoptTCPInfo(w.d)
+	tcpInfo, err := w.CommonInfo()
 	if err != nil {
 		httpInfo.Error = err.Error()
 	} else {

@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"github.com/qiniu/httpping/network"
 	"net/http"
 	"net/url"
 	"path"
@@ -34,6 +35,7 @@ type StreamInfo struct {
 	HttpCode            int
 	RemoteAddr          string
 	LocalAddr           string
+	TcpInfo             network.TCPInfo
 }
 
 func (info *StreamInfo) init(tcp *mhttp.TcpWrapper, resp *http.Response) {
@@ -45,6 +47,10 @@ func (info *StreamInfo) init(tcp *mhttp.TcpWrapper, resp *http.Response) {
 	info.RemoteAddr = tcp.RemoteAddr().String()
 	info.LocalAddr = tcp.LocalAddr().String()
 	info.HttpCode = resp.StatusCode
+	tinfo, err := tcp.CommonInfo()
+	if err == nil {
+		info.TcpInfo = *tinfo
+	}
 }
 
 func (p *Prober) Do() (*StreamInfo, error) {

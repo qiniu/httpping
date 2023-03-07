@@ -212,3 +212,8 @@ func (t *TcpWrapper) DialTLS(ctx context.Context, network, addr string) (conn ne
 func (t *TcpWrapper) TTFB() time.Duration {
 	return t.firstRead.Sub(t.lastWrite)
 }
+
+func (t *TcpWrapper) CommonInfo() (*network.TCPInfo, error) {
+	i, _, err := network.GetSockoptTCPInfo(t.d)
+	return i, err
+}
